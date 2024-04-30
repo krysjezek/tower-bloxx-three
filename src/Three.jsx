@@ -1,22 +1,41 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState} from 'react';
 import * as THREE from 'three';
 import CANNON from 'cannon';
 
 const ThreeScene = () => {
     const mountRef = useRef(null);
+    const [gameOver, setGameOver] = useState(false);
+    const [score, setScore] = useState(0); // Score state
 
     useEffect(() => {
 
         let camera, scene, renderer;
-        const originalBoxSize = 3;
-        let stack = [];
-        let overhangs = [];
-        let boxHeight = 1;
+        const originalBoxSize = 2;
+        let currentBlock = null;
+        let round = 0;
+        let droppedBlocks = [];
+        let boxHeight = 2;
         let gameStarted = false;
         let world;
+        let angle = 0;
+        let step = 3;
 
         function init() {
 
+            if (renderer) {
+                renderer.setAnimationLoop(null);
+                while(scene.children.length > 0){
+                    scene.remove(scene.children[0]);
+                }
+                Array.from(world.bodies).forEach(body => {
+                    world.remove(body);
+                });
+                if (document.body.contains(renderer.domElement)) {
+                    document.body.removeChild(renderer.domElement);
+                }
+            }
+
+            console.log('init');
             world = new CANNON.World();
             world.gravity.set(0, -10, 0);
             world.broadphase = new CANNON.NaiveBroadphase();
@@ -24,8 +43,8 @@ const ThreeScene = () => {
 
             scene = new THREE.Scene();
 
-            addLayer(0, 0, originalBoxSize, originalBoxSize);
-            addLayer(-10, 0, originalBoxSize, originalBoxSize, 'x');
+            addLayer(0, 0, 0, originalBoxSize, originalBoxSize);
+            addLayer(-10,step, 0, originalBoxSize, originalBoxSize, 'x');
 
             const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
             scene.add(ambientLight);
@@ -45,7 +64,7 @@ const ThreeScene = () => {
                 100
             );
 
-            camera.position.set(4, 4, 4);
+            camera.position.set(0, 2,8);
             camera.lookAt(0, 0, 0);
 
             // renderer
@@ -54,34 +73,24 @@ const ThreeScene = () => {
             renderer.render(scene, camera);
 
             document.body.appendChild(renderer.domElement);
-
+            renderer.setAnimationLoop(animation);
         }
 
-        function addLayer(x ,z ,width, depth, direction){
-            const y = boxHeight * stack.length;
-            const layer = generateBox(x, y, z, width, depth, false);
-            layer.direction = direction;
-
-            stack.push(layer);
-        }
-
-        function addOverhang(x, z, width, depth){
-            const y = boxHeight * (stack.length - 1);
-            const overhang = generateBox(x, y, z, width, depth, true);
-            overhangs.push(overhang);
+        function addLayer(x, y ,z ,width, depth){
+            currentBlock = generateBox(x, y, z, width, depth);
         }
 
         function generateBox(x, y, z, width, depth, falls){
             const geometry = new THREE.BoxGeometry(width, boxHeight, depth);
 
-            const color = new THREE.Color(`hsl(${30 + stack.length * 4}, 100%, 50%)`);
+            const color = new THREE.Color(`hsl(${30 + round+1 * 4}, 100%, 50%)`);
             const material = new THREE.MeshLambertMaterial({ color});
 
             const mesh = new THREE.Mesh(geometry, material);
             mesh.position.set(x, y, z);
             scene.add(mesh);
 
-            // CANNON JS
+            // Cannon
             const shape = new CANNON.Box(new CANNON.Vec3(width / 2, boxHeight / 2, depth / 2));
             let mass = falls ? 5 : 0;
             const body = new CANNON.Body({ mass, shape });
@@ -96,88 +105,129 @@ const ThreeScene = () => {
             };
         }
 
-        window.addEventListener('click', () => {
+        function generateDroppedBox(x, y, z, width, depth){
+            const dblock = generateBox(x, y, z, width, depth, true);
+            droppedBlocks.push(dblock);
+        }
+
+        const addEventListeners = () => {
+            window.addEventListener('click', handleUserInteraction);
+            window.addEventListener('touchstart', handleUserInteraction);
+        };
+
+        const removeEventListeners = () => {
+            window.removeEventListener('click', handleUserInteraction);
+            window.removeEventListener('touchstart', handleUserInteraction);
+        };
+
+
+        const handleUserInteraction = () => {
             if (!gameStarted){
-                renderer.setAnimationLoop(animation);
+                resetGame();
                 gameStarted = true;
-            } else {
-                const topLayer = stack[stack.length - 1];
-                const previousLayer = stack[stack.length - 2];
-
-                const directon = topLayer.direction;
-
-                const delta = topLayer.threejs.position[directon] - previousLayer.threejs.position[directon];
-
-                const overhangSize = Math.abs(delta);
-
-                const size = directon === 'x' ? topLayer.width : topLayer.depth;
-                const overlap = size - overhangSize;
-
-                if(overlap > 0){
-
-                    const newWidth = directon === 'x' ? overlap : topLayer.width;
-                    const newDepth = directon === 'z' ? overlap : topLayer.depth;
-
-                    topLayer.width = newWidth;
-                    topLayer.depth = newDepth;
-
-                    topLayer.threejs.scale[directon] = overlap / size;
-                    topLayer.threejs.position[directon] -= delta / 2;
-
-                    topLayer.cannonjs.position[directon] -= delta / 2;
-
-                    const shape = new CANNON.Box(new CANNON.Vec3(newWidth / 2, boxHeight / 2, newDepth / 2));
-                    topLayer.cannonjs.shapes = [];
-                    topLayer.cannonjs.addShape(shape);
-
-                    // Overhang
-                    const overhangShift = (overlap / 2 + overhangSize / 2) * Math.sign(delta);
-                    const overhangX = directon === 'x' ? topLayer.threejs.position.x + overhangShift : topLayer.threejs.position.x;
-                    const overhangZ = directon === 'z' ? topLayer.threejs.position.z + overhangShift : topLayer.threejs.position.z;
-                    const overhangWidth = directon === 'x' ? overhangSize : newWidth;
-                    const overhangDepth = directon === 'z' ? overhangSize : newDepth;
-
-                    addOverhang(overhangX, overhangZ, overhangWidth, overhangDepth);
-
-                    const nextX = directon === 'x' ? topLayer.threejs.position.x : -10;
-                    const nextZ = directon === 'z' ? topLayer.threejs.position.z : -10;
-                    const nextDirection = directon === 'x' ? 'z' : 'x';
-
-                    addLayer(nextX, nextZ, newWidth, newDepth, nextDirection);
-
-                }
                 
+            } else {
+                const topLayer = currentBlock;
+
+                const nextX = -10;
+                const nextZ = 0;
+                const nextY = (round + 1) * boxHeight + step;
+                const newWidth = originalBoxSize;
+                const newDepth = originalBoxSize;
+
+                generateDroppedBox(topLayer.threejs.position.x, topLayer.threejs.position.y, topLayer.threejs.position.z, topLayer.width, topLayer.depth);
+
+                scene.remove(topLayer.threejs);
+                
+                addLayer(nextX,nextY, nextZ, newWidth, newDepth);
+                round++;
+                setScore(round);
             }
-        });
+        };
+
+        function resetGame() {
+            // Clear the scene and physics world
+            droppedBlocks = [];
+            round = 0;
+            setScore(0);
+            setGameOver(false);
+            init(); // re-initialize the game setup
+        }
+
+        function checkGameOver() {
+            // Assuming the game over condition is that the block falls below y = -10
+            droppedBlocks.forEach(block => {
+                if (block.threejs.position.y < -1) {
+                    setGameOver(true);
+                    gameStarted = false;
+                }
+            });
+        }
 
         function animation(){
-            const speed = 0.15;
+            if (gameOver) {
+                return; // Stop the animation loop if the game is over
+            }
+            const speed = 0.05;
+            angle += speed;
+            const amplitude = 3;
+            const newPositionX = Math.sin(angle) * amplitude;
+            
+            let newPositionY = (Math.cos(angle) * amplitude / 2);
+            if (newPositionY > 0){
+                newPositionY = -newPositionY;
+            } 
 
-            const topLayer = stack[stack.length - 1];
-            topLayer.threejs.position[topLayer.direction] += speed;
-            topLayer.cannonjs.position[topLayer.direction] += speed;
+            const topLayer = currentBlock;
+            const initYPos = topLayer.threejs.position.y;
+            topLayer.threejs.position.x = newPositionX;
+            //topLayer.threejs.position.y = newPositionY + initYPos;
 
-            if (camera.position.y < boxHeight * (stack.length - 2) + 4){
+            if (camera.position.y < boxHeight * round + 4){
                 camera.position.y += speed;
             }
 
             updatePhysics();
             renderer.render(scene, camera);
+
         }
 
         function updatePhysics(){
+
             world.step(1/60);
 
-            overhangs.forEach((element) => {
+            droppedBlocks.forEach((element) => {
                 element.threejs.position.copy(element.cannonjs.position);
                 element.threejs.quaternion.copy(element.cannonjs.quaternion);
             });
+
+            checkGameOver();
+
         }
 
         init();
+        addEventListeners();
+
+        return () => {
+            if (renderer) {
+                renderer.setAnimationLoop(null); // Cleanup on component unmount
+                document.body.removeChild(renderer.domElement);
+            }
+        };
+
     }, []);
 
-    return <div ref={mountRef}></div>;
+    return (
+        <div ref={mountRef} style={{ position: 'relative', width: '100%', height: '100%' }}>
+            {!gameOver && <div style={{ position: 'absolute', top: '0px',  width: '100%', color: 'white', fontSize: '24px', padding: '20px 0px 0px 20px' }}>
+                Score: {score}
+            </div>}
+            {gameOver && <div style={{ position: 'absolute', top: '0px', width: '100%', height:'100%', textAlign: 'center', background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column' }}>
+                <div style={{fontSize: '36px', color: 'white'}}>Game Over! Click or tap to restart.</div>
+                <div style={{fontSize: '24px', color: 'white'}}>Final score: {score}</div>
+            </div>}
+        </div>
+    );
 };
 
 export default ThreeScene;
