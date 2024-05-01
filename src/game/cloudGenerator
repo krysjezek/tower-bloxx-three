@@ -1,0 +1,36 @@
+import * as THREE from 'three';
+
+// Array of cloud textures and their properties
+const cloudTextures = [
+    { path: '/clouds/cloud1.png', width: 10, height: 5 },
+    { path: '/clouds/cloud2.png', width: 12, height: 6 },
+    { path: '/clouds/cloud3.png', width: 15, height: 7.5 },
+    { path: '/clouds/cloud4.png', width: 8, height: 4 }
+];
+
+function createCloud() {
+    const textureLoader = new THREE.TextureLoader();
+
+    // Randomly select a cloud texture and its properties
+    const cloudData = cloudTextures[Math.floor(Math.random() * cloudTextures.length)];
+    const cloudTexture = textureLoader.load(cloudData.path, () => {
+        console.log('Cloud texture loaded successfully');
+    }, undefined, (error) => {
+        console.error('Error loading cloud texture. Event:', error);
+        console.error('Failed path:', cloudData.path);
+    });
+
+    const material = new THREE.MeshBasicMaterial({
+        map: cloudTexture,
+        transparent: true,
+        opacity: 0.6, // Adjust opacity based on your design needs
+        side: THREE.DoubleSide
+    });
+
+    const geometry = new THREE.PlaneGeometry(cloudData.width, cloudData.height);
+    const cloud = new THREE.Mesh(geometry, material);
+
+    return cloud;
+}
+
+export default createCloud;

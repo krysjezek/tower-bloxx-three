@@ -32,27 +32,29 @@ export default function LeaderBoardComponent({ onNavigate }) {
     }, []);
 
     return (
-        <div style={{color: "black", padding: '10px'}}>
+        <div className="menu-wrap">
             <h1>Leaderboard</h1>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <table>
                 <thead>
                     <tr>
-                        <th style={{ border: '1px solid black', padding: '8px', textAlign: 'left' }}>Name</th>
-                        <th style={{ border: '1px solid black', padding: '8px', textAlign: 'left' }}>Score</th>
-                        <th style={{ border: '1px solid black', padding: '8px', textAlign: 'left' }}>Date</th>
+                        <th className="size">#</th>
+                        <th>Name</th>
+                        <th>Score</th>
+                        
                     </tr>
                 </thead>
                 <tbody>
-                    {scores.map((score) => (
-                        <tr key={score.id}>
-                            <td style={{ border: '1px solid black', padding: '8px' }}>{score.name}</td>
-                            <td style={{ border: '1px solid black', padding: '8px' }}>{score.score}</td>
-                            <td style={{ border: '1px solid black', padding: '8px' }}>{formatDate(score.date)}</td>
+                    {scores.map((score, index) => (
+                        <tr id={"sec"+(index+1)} key={score.id}>
+                            <td className='size'>{index + 1}</td>
+                            <td>{score.name}</td>
+                            <td>{score.score}</td>
+                            
                         </tr>
                     ))}
                 </tbody>
             </table>
-            <button onClick={() => onNavigate('menu')} style={{ fontSize: '20px', padding: '10px', margin: '10px' }}>Back to Menu</button>
+            <button onClick={() => onNavigate('menu')}>Back to Menu</button>
         </div>
     );
 }

@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import CANNON from 'cannon';
 import db from './firebase';
 import { collection, addDoc } from 'firebase/firestore';
+import createCloud from './game/cloudGenerator';
 
 const ThreeScene = ({onNavigate}) => {
     const mountRef = useRef(null);
@@ -10,6 +11,9 @@ const ThreeScene = ({onNavigate}) => {
     const [score, setScore] = useState(0); // Score state
     const [name, setName] = useState('');
     const [isSaved, setIsSaved] = useState(false);
+    const [cameraPosition, setCameraPosition] = useState(new THREE.Vector3(2, 2, 8)); // Initial camera position
+    const [animationProgress, setAnimationProgress] = useState(0); // Progress from 0 to 1
+    const targetPosition = new THREE.Vector3(1, 2, 7);
 
     const initializeGame = () => {
         setGameOver(false);
@@ -48,8 +52,11 @@ const ThreeScene = ({onNavigate}) => {
         let world;
         let angle = 0;
         let step = 3;
+        let lastCloudHeight = 0;
+        let cloudHeightInterval = 4;
 
         function init() {
+            setIsSaved(false);
 
             if (renderer) {
                 renderer.setAnimationLoop(null);
@@ -93,7 +100,7 @@ const ThreeScene = ({onNavigate}) => {
                 100
             );
 
-            camera.position.set(0, 2,8);
+            camera.position.set(2, 2,8);
             camera.lookAt(0, 0, 0);
 
             // renderer
@@ -103,10 +110,25 @@ const ThreeScene = ({onNavigate}) => {
 
             document.body.appendChild(renderer.domElement);
             renderer.setAnimationLoop(animation);
+
+            scene.background = new THREE.Color(0xabcdef); 
         }
 
         function addLayer(x, y ,z ,width, depth){
             currentBlock = generateBox(x, y, z, width, depth);
+        }
+
+        function checkHeightAndGenerateClouds(currentHeight) {
+            if (currentHeight > lastCloudHeight + cloudHeightInterval) {
+                const newCloud = createCloud();
+                newCloud.position.set(
+                    Math.random() * 20 - 10, // Random X position within range
+                    currentHeight + 10,      // Slightly above the current height
+                    Math.random() * 10 - 5   // Random Z position within range
+                );
+                scene.add(newCloud);
+                lastCloudHeight = currentHeight; // Update the height at which the last cloud was added
+            }
         }
 
         function generateBox(x, y, z, width, depth, falls){
@@ -215,6 +237,9 @@ const ThreeScene = ({onNavigate}) => {
                 camera.position.y += speed;
             }
 
+            const currentHeight = camera.position.y; // Assuming the camera's Y position represents player height
+            checkHeightAndGenerateClouds(currentHeight);
+
             updatePhysics();
             renderer.render(scene, camera);
 
@@ -236,6 +261,7 @@ const ThreeScene = ({onNavigate}) => {
 
         addEventListeners();
 
+
         return () => {
             if (renderer) {
                 removeEventListeners();
@@ -251,37 +277,46 @@ const ThreeScene = ({onNavigate}) => {
     return (
         <div ref={mountRef} style={{ position: 'relative', width: '100%', height: '100%' }}>
             {!gameOver && (
-                <div style={{ position: 'absolute', top: '0px', width: '100%', color: 'white', fontSize: '24px', padding: '20px 0px 0px 20px' }}>
-                    Score: {score}
+                <div className='score-tab'>
+                    <div className='score-in'>SCORE</div>
+                    <div className='score-in score'>{score}</div>
                 </div>
             )}
             {gameOver && (
                 <div style={{ position: 'absolute', top: '0px', width: '100%', height:'100%', textAlign: 'center', background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column' }}>
-                    <div style={{ fontSize: '36px', color: 'white' }}>Game Over! Your final score: {score}</div>
-                    {!isSaved && (
-                        <div
-                        onClick={(e) => e.stopPropagation()}>
-                            <input
-                                type="text"
-                                value={name}
-                                onChange={(e) => setName(e.target.value)}
-                                placeholder="Enter your name"
-                                style={{ fontSize: '20px', margin: '20px', padding: '10px' }}
-                            />
-                            <button onClick={handleSaveScore} style={{ fontSize: '20px', padding: '10px', margin: '10px' }}>Save Score</button>
+                    <div className='menu-wrap'>
+                        <div className='button-wrap'>
+                            <h1>Game Over!</h1>
                         </div>
-                    )}
-                    {isSaved && (
-                        <div>
-                            <div style={{ fontSize: '20px', color: 'white' }}>Score saved!</div>
-                            <button onClick={() => onNavigate('leaderboard')} style={{ fontSize: '20px', padding: '10px', margin: '10px' }}>View Leaderboard</button>
-                        </div>
+                        {!isSaved && (
+                            <div
+                            onClick={(e) => e.stopPropagation()}>
+                                <div className='score-tab'>
+                                    <div className='score-in'>SCORE</div>
+                                    <div className='score-in score'>{score}</div>
+                                </div>
+                                <input
+                                    type="text"
+                                    value={name}
+                                    onChange={(e) => setName(e.target.value)}
+                                    placeholder="Enter your name"
+                                />
+                                <button onClick={handleSaveScore}>Save Score</button>
+                            </div>
+                        )}
+                        {isSaved && (
+                            <div>
+                                <div style={{ fontSize: '20px', color: 'white' }}>Score saved!</div>
+                                <button onClick={() => onNavigate('leaderboard')}>View Leaderboard</button>
+                            </div>
 
 
-                    )}
-                    
-                    <button onClick={() => { initializeGame(); onNavigate('game'); }} style={{ fontSize: '20px', padding: '10px', margin: '10px' }}>Restart Game</button>
-                    <button onClick={() => onNavigate('menu')} style={{ fontSize: '20px', padding: '10px', margin: '10px' }}>Back to Menu</button>
+                        )}
+                        <div className='button-wrap'>
+                            <button className='button-start' onClick={() => { initializeGame(); }}>Try Again</button>
+                            <button onClick={() => onNavigate('menu')}>Back to Menu</button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
