@@ -13,6 +13,7 @@ html, body {
   background-image: url('assets/Title_Image_Day.png');
   background-position: center;
   background-size: cover;
+  font-size: 30px;
 }
 
 #root {
@@ -59,7 +60,6 @@ html, body {
 button {
   text-align: center;
   display: inline-block;
-  font-size: 30px;
   font-family: "Play", sans-serif;
   margin:5px;
   font-weight: bold;
@@ -74,6 +74,7 @@ button {
   box-shadow: 0 .2em #ababab; 
   cursor: pointer;
   border: 2px solid #bdbdbd;
+  font-size: 30px;
 
 }
 
@@ -101,7 +102,6 @@ h1 {
 }
 
 h2 {
-  font-size: 30px;
   text-shadow: -1px -1px black, 1px 1px rgb(125, 125, 125);
   color: rgb(232, 232, 232);
   padding: 0;
@@ -132,7 +132,6 @@ table {
   padding: 0;
   margin: 0;
   border-spacing: 0px;
-  font-size: 30px;
 }
 
 th {
@@ -195,7 +194,6 @@ a {
 }
 
 #sec1 {
-  font-size: 30px;
   font-weight: 700;
   background-color:#fcba03;
   text-shadow: -1px -1px #cf9802, 1px 1px #ffda73;
@@ -203,7 +201,6 @@ a {
 }
 
 #sec2 {
-  font-size: 30px;
   font-weight: 700;
   background-color:#c2c2c2;
   text-shadow: -1px -1px #d3d3d3, 1px 1px #a3a3a3;
@@ -211,7 +208,6 @@ a {
 }
 
 #sec3 {
-  font-size: 30px;
   font-weight: 700;
   background-color:#ca5400;
   text-shadow: -1px -1px #e55f00, 1px 1px #7f3500;
@@ -267,13 +263,12 @@ input{
   -o-border-radius: 20px;
   border-radius: 20px;
   box-shadow: 0 .2em #0a0a0a;
-  font-size: 30px;
   font-family: "Play", sans-serif;
   font-weight: bold;
   display: flex;
   justify-content: space-between;
   overflow: hidden;
-  margin: 20px;
+  margin-bottom: 15px;
 
 }
 
@@ -285,4 +280,47 @@ input{
 
 .score-in{
   padding: 10px 20px 10px 20px;
+}
+
+.save-score{
+  display: flex;
+}
+
+
+@media (max-width: 768px) {
+
+  body,html{
+    font-size: 20px;
+  }
+
+  .menu-wrap {
+    gap: 20px;
+    padding: 20px 30px 20px 30px;
+    margin: 20px;  
+  }
+
+  button {
+    padding: 5px 10px 5px 10px ;
+    font-size: 20px;
+  }
+
+  h1 {
+    font-size: 40px;
+    line-height: 40px;
+  }
+
+  p {
+    font-size: 12px;
+  }
+
+  .save-score{
+    display: flex;
+    flex-direction: column;
+  }
+
+  input {
+    font-size: 20px;
+  }
+  
+
 }

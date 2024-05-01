@@ -295,13 +295,15 @@ const ThreeScene = ({onNavigate}) => {
                                     <div className='score-in'>SCORE</div>
                                     <div className='score-in score'>{score}</div>
                                 </div>
-                                <input
-                                    type="text"
-                                    value={name}
-                                    onChange={(e) => setName(e.target.value)}
-                                    placeholder="Enter your name"
-                                />
-                                <button onClick={handleSaveScore}>Save Score</button>
+                                <div className='save-score'>
+                                    <input
+                                        type="text"
+                                        value={name}
+                                        onChange={(e) => setName(e.target.value)}
+                                        placeholder="Enter your name"
+                                    />
+                                    <button onClick={handleSaveScore}>Save Score</button>
+                                </div>
                             </div>
                         )}
                         {isSaved && (
