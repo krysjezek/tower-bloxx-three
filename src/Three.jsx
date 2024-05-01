@@ -2,10 +2,16 @@ import React, { useRef, useEffect, useState} from 'react';
 import * as THREE from 'three';
 import CANNON from 'cannon';
 
-const ThreeScene = () => {
+const ThreeScene = ({onNavigate}) => {
     const mountRef = useRef(null);
     const [gameOver, setGameOver] = useState(false);
     const [score, setScore] = useState(0); // Score state
+    const [page, setPage] = useState('game');
+
+    const initializeGame = () => {
+        setGameOver(false);
+        setScore(0);
+    }
 
     useEffect(() => {
 
@@ -112,20 +118,19 @@ const ThreeScene = () => {
 
         const addEventListeners = () => {
             window.addEventListener('click', handleUserInteraction);
-            window.addEventListener('touchstart', handleUserInteraction);
+            //window.addEventListener('touchstart', handleUserInteraction);
         };
 
         const removeEventListeners = () => {
             window.removeEventListener('click', handleUserInteraction);
-            window.removeEventListener('touchstart', handleUserInteraction);
+            //window.removeEventListener('touchstart', handleUserInteraction);
         };
 
 
         const handleUserInteraction = () => {
             if (!gameStarted){
                 resetGame();
-                gameStarted = true;
-                
+                gameStarted = true; 
             } else {
                 const topLayer = currentBlock;
 
@@ -158,6 +163,7 @@ const ThreeScene = () => {
             // Assuming the game over condition is that the block falls below y = -10
             droppedBlocks.forEach(block => {
                 if (block.threejs.position.y < -1) {
+                    console.log(block.threejs.position.y);
                     setGameOver(true);
                     gameStarted = false;
                 }
@@ -205,11 +211,11 @@ const ThreeScene = () => {
 
         }
 
-        init();
         addEventListeners();
 
         return () => {
             if (renderer) {
+                removeEventListeners();
                 renderer.setAnimationLoop(null); // Cleanup on component unmount
                 document.body.removeChild(renderer.domElement);
             }
@@ -217,15 +223,22 @@ const ThreeScene = () => {
 
     }, []);
 
+    
+
     return (
         <div ref={mountRef} style={{ position: 'relative', width: '100%', height: '100%' }}>
-            {!gameOver && <div style={{ position: 'absolute', top: '0px',  width: '100%', color: 'white', fontSize: '24px', padding: '20px 0px 0px 20px' }}>
-                Score: {score}
-            </div>}
-            {gameOver && <div style={{ position: 'absolute', top: '0px', width: '100%', height:'100%', textAlign: 'center', background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column' }}>
-                <div style={{fontSize: '36px', color: 'white'}}>Game Over! Click or tap to restart.</div>
-                <div style={{fontSize: '24px', color: 'white'}}>Final score: {score}</div>
-            </div>}
+            {!gameOver && (
+                <div style={{ position: 'absolute', top: '0px', width: '100%', color: 'white', fontSize: '24px', padding: '20px 0px 0px 20px' }}>
+                    Score: {score}
+                </div>
+            )}
+            {gameOver && (
+                <div style={{ position: 'absolute', top: '0px', width: '100%', height:'100%', textAlign: 'center', background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column' }}>
+                    <div style={{fontSize: '36px', color: 'white'}}>Game Over! Your final score: {score}</div>
+                    <button onClick={() => onNavigate('menu')}>Start Game</button>
+                    <button onClick={() => { initializeGame(); onNavigate('game');}}>REStart Game</button>
+                </div>
+            )}
         </div>
     );
 };
