@@ -1,0 +1,25 @@
+#circles-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.circle {
+  cursor: pointer;
+  width: 15px;
+  height: 15px;
+  margin: 10px;
+}
+
+@keyframes rotate {
+  from {
+    transform: rotateX(0deg);
+  }
+  to {
+    transform: rotateX(360deg);
+  }
+}
+
+.rotating {
+  animation: rotate 1s linear;
+}

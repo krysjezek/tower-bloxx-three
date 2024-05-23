@@ -10,7 +10,8 @@ const ThreeScene = ({onNavigate}) => {
     const mountRef = useRef(null);
     const [gameOver, setGameOver] = useState(false);
     const [score, setScore] = useState(0); // Score state
-    const [name, setName] = useState('');
+    const [name, setName] = useState(''); // Stav pro jméno
+    const [email, setEmail] = useState(''); // Přidaný stav pro email
     const [isSaved, setIsSaved] = useState(false);
     const [cameraPosition, setCameraPosition] = useState(new THREE.Vector3(2, 2, 8)); // Initial camera position
     const [animationProgress, setAnimationProgress] = useState(0); // Progress from 0 to 1
@@ -21,25 +22,32 @@ const ThreeScene = ({onNavigate}) => {
         setScore(0);
     }
 
-    const handleSaveScore = async () => {
-        if (name !== '') {
+    const saveNameToLocalStorage = (name) => {
+        localStorage.setItem('userName', name);
+    };    
 
-            try {
-                await addDoc(collection(db, "scores"), {
-                    name: name,
-                    score: score,
-                    date: new Date()
-                });
-                setIsSaved(true);
-            } catch (error) {
-                console.error("Firebase error code:", error.code);
-                console.error("Firebase error message:", error.message);
-                alert('Error saving score');
-            }
-        } else {
-            alert('Please enter a name.');
+    const handleSaveScore = async (e) => {
+        e.preventDefault(); // Zabránění standardnímu odeslání formuláře
+        if (name.trim() === '') {
+            alert('Please enter a name.'); // Jednoduchá validace jména
+            return;
         }
-    };
+    
+        try {
+            // Přidání dokumentu do kolekce "scores" s jménem, skóre a datem
+            await addDoc(collection(db, "scores"), {
+                name: name,
+                score: score,
+                date: new Date()
+            });
+            saveNameToLocalStorage(name); // Uložení jména do LocalStorage
+            setIsSaved(true);
+            alert('Score saved successfully!');
+        } catch (error) {
+            console.error("Error saving to Firebase:", error);
+            alert('Error saving score: ' + error.message);
+        }
+    };    
 
     let baseModel = null;
     function loadBaseModel() {
@@ -390,22 +398,33 @@ const ThreeScene = ({onNavigate}) => {
                             <h1>Game Over!</h1>
                         </div>
                         {!isSaved && (
-                            <div
-                            onClick={(e) => e.stopPropagation()}>
-                                <div className='score-tab'>
-                                    <div>SCORE</div>
-                                    <div className='score'>{score}</div>
-                                </div>
-                                <div className='save-score'>
-                                    <input
-                                        type="text"
-                                        value={name}
-                                        onChange={(e) => setName(e.target.value)}
-                                        placeholder="Enter your name"
-                                    />
-                                    <button className='button-yellow' onClick={handleSaveScore}>Save Score</button>
-                                </div>
-                            </div>
+                            <form onSubmit={handleSaveScore} onClick={(e) => e.stopPropagation()}>
+                                    <div className='score-tab'>
+                                        <div>SCORE</div>
+                                        <div className='score'>{score}</div>
+                                    </div>
+                                    <div className='save-score'>
+                                        <label htmlFor="name">Enter your name:</label>
+                                        <input
+                                            id="name"
+                                            type="text"
+                                            value={name}
+                                            onChange={(e) => setName(e.target.value)}
+                                            placeholder="Your name"
+                                            autoFocus
+                                            required
+                                        />
+                                        <label htmlFor="email">Email (optional):</label>
+                                        <input
+                                            id="email"
+                                            type="email"
+                                            value={email}
+                                            onChange={(e) => setEmail(e.target.value)}
+                                            placeholder="Enter your email"
+                                        />
+                                        <button className='button-yellow' type="submit">Save Score</button>
+                                    </div>
+                            </form>
                         )}
                         {isSaved && (
                             <div>

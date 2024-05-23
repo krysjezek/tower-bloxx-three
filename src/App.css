@@ -75,7 +75,7 @@ button {
   cursor: pointer;
   border: 2px solid #bdbdbd;
   font-size: 30px;
-
+  transition: transform 0.2s ease, box-shadow 0.2s ease, top 0.2s ease;
 }
 
 .button-start {
@@ -95,9 +95,8 @@ button {
 }
 
 button:hover {
-	box-shadow: none;
-	position: relative;
-	top: .2em;
+  box-shadow: none;
+  transform: translateY(0.2em);
 }
 
 h1 {
@@ -162,6 +161,10 @@ tr{
   background-color: rgb(32, 32, 32);
   width: auto;
   overflow: hidden;
+}
+
+tbody tr:nth-child(even) {
+  background-color: rgb(48, 48, 48);
 }
 
 thead, tbody tr {
