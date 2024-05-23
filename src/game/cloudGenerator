@@ -2,10 +2,10 @@ import * as THREE from 'three';
 
 // Array of cloud textures and their properties
 const cloudTextures = [
-    { path: '/clouds/cloud1.png', width: 10, height: 5 },
-    { path: '/clouds/cloud2.png', width: 12, height: 6 },
-    { path: '/clouds/cloud3.png', width: 15, height: 7.5 },
-    { path: '/clouds/cloud4.png', width: 8, height: 4 }
+    { path: './clouds/cloud1.png', width: 10, height: 5 },
+    { path: './clouds/cloud2.png', width: 12, height: 6 },
+    { path: './clouds/cloud3.png', width: 15, height: 7.5 },
+    { path: './clouds/cloud4.png', width: 8, height: 4 }
 ];
 
 function createCloud() {

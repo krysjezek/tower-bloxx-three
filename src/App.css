@@ -79,11 +79,19 @@ button {
 }
 
 .button-start {
-  background-color:#fc1803;
-  text-shadow: -1px -1px #cf0202, 1px 1px #ff7373;
-  color: #750000;
-  box-shadow: 0 .2em #b00000;
-  border: 2px solid #940101;
+  background-color:#0341fc;
+  text-shadow: -1px -1px #0228cf, 1px 1px #737aff;
+  color: #02134a;
+  box-shadow: 0 .2em #0012b0;
+  border: 2px solid #013794;
+}
+
+.button-yellow {
+  background-color:#fcba03;
+  text-shadow: -1px -1px #cf9802, 1px 1px #e2a600;
+  color: #3d2d00;
+  box-shadow: 0 .2em #765700;
+  border: 2px solid #c28e00;
 }
 
 button:hover {
@@ -255,27 +263,17 @@ input{
 
 .score-tab{
   max-width: 100%;
-  background-color:#1e1e1e;
-  text-shadow: -1px -1px #4b4b4b, 1px 1px #4f4f4f;
-  color: #e6e6e6;
-  -webkit-border-radius: 20px;
-  -moz-border-radius: 20px;
-  -o-border-radius: 20px;
-  border-radius: 20px;
-  box-shadow: 0 .2em #0a0a0a;
   font-family: "Play", sans-serif;
   font-weight: bold;
   display: flex;
   justify-content: space-between;
   overflow: hidden;
-  margin-bottom: 15px;
+  padding: 10px 20px 10px 20px;
 
 }
 
 .score{
-  background-color:#fcba03;
-  text-shadow: -1px -1px #cf9802, 1px 1px #ffda73;
-  color: #5c4400;
+  color: #fcba03;
 }
 
 .score-in{

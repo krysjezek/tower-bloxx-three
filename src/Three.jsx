@@ -4,6 +4,7 @@ import CANNON from 'cannon';
 import db from './firebase';
 import { collection, addDoc } from 'firebase/firestore';
 import createCloud from './game/cloudGenerator';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 const ThreeScene = ({onNavigate}) => {
     const mountRef = useRef(null);
@@ -40,6 +41,27 @@ const ThreeScene = ({onNavigate}) => {
         }
     };
 
+    let baseModel = null;
+    function loadBaseModel() {
+        return new Promise((resolve, reject) => {
+            const loader = new GLTFLoader();
+            loader.load(
+                './block.glb',
+                function (gltf) {
+                    baseModel = gltf.scene;
+                    console.log('Base model loaded successfully!');
+                    resolve(baseModel);
+                },
+                undefined,
+                function (error) {
+                    console.error('Error loading the base model:', error);
+                    reject(error);
+                }
+            );
+        });
+    }
+    
+
     useEffect(() => {
 
         let camera, scene, renderer;
@@ -53,11 +75,18 @@ const ThreeScene = ({onNavigate}) => {
         let angle = 0;
         let step = 3;
         let lastCloudHeight = 0;
-        let cloudHeightInterval = 4;
+        let cloudHeightInterval = 5;
+        let lastPosX = 0;
+        let velocity = 0;
+        let defaultContactMaterial, defaultMaterial;
 
-        function init() {
+        async function init() {
+            try{
+                await loadBaseModel();
+            
+            } catch (error) {}
+            loadBaseModel();
             setIsSaved(false);
-
             if (renderer) {
                 renderer.setAnimationLoop(null);
                 while(scene.children.length > 0){
@@ -77,6 +106,19 @@ const ThreeScene = ({onNavigate}) => {
             world.broadphase = new CANNON.NaiveBroadphase();
             world.solver.iterations = 40;
 
+            defaultMaterial = new CANNON.Material('defaultMaterial');
+
+            defaultContactMaterial = new CANNON.ContactMaterial(defaultMaterial, defaultMaterial, {
+                friction: 0.4,
+                restitution: 0,  // Adjust restitution to control "bounciness"
+            });
+            world.addContactMaterial(defaultContactMaterial);
+
+            world.addEventListener('beginContact', function(event) {
+                console.log('Collision detected between:', event.bodyA.id, 'and', event.bodyB.id);
+                // You can add more specific logic here based on the IDs or materials
+            });
+
             scene = new THREE.Scene();
 
             addLayer(0, 0, 0, originalBoxSize, originalBoxSize);
@@ -85,18 +127,21 @@ const ThreeScene = ({onNavigate}) => {
             const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
             scene.add(ambientLight);
 
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 4);
             directionalLight.position.set(10, 20, 0);
+            directionalLight.castShadow = true;
             scene.add(directionalLight);
 
-            const width = 10;
+            const ground = createGround();
+
+            const width = window.innerWidth / 100;
             const height = width / (window.innerWidth / window.innerHeight);
             camera = new THREE.OrthographicCamera(
                 width / -2,
                 width / 2,
                 height / 2,
                 height / -2,
-                1,
+                .1,
                 100
             );
 
@@ -106,12 +151,13 @@ const ThreeScene = ({onNavigate}) => {
             // renderer
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
             renderer.render(scene, camera);
 
             document.body.appendChild(renderer.domElement);
             renderer.setAnimationLoop(animation);
 
-            scene.background = new THREE.Color(0xabcdef); 
+            scene.background = new THREE.Color(0x121212); 
         }
 
         function addLayer(x, y ,z ,width, depth){
@@ -124,32 +170,84 @@ const ThreeScene = ({onNavigate}) => {
                 newCloud.position.set(
                     Math.random() * 20 - 10, // Random X position within range
                     currentHeight + 10,      // Slightly above the current height
-                    Math.random() * 10 - 5   // Random Z position within range
+                    Math.random() * 10 - 10   // Random Z position within range
                 );
                 scene.add(newCloud);
                 lastCloudHeight = currentHeight; // Update the height at which the last cloud was added
             }
         }
 
-        function generateBox(x, y, z, width, depth, falls){
-            const geometry = new THREE.BoxGeometry(width, boxHeight, depth);
+        function createGround() {
 
-            const color = new THREE.Color(`hsl(${30 + round+1 * 4}, 100%, 50%)`);
-            const material = new THREE.MeshLambertMaterial({ color});
+            const textureLoader = new THREE.TextureLoader();
 
-            const mesh = new THREE.Mesh(geometry, material);
-            mesh.position.set(x, y, z);
-            scene.add(mesh);
+            // Load the texture image
+            const cloudTexture = textureLoader.load('./grid.png', () => {
+                console.log('Cloud texture loaded successfully');
+            }, undefined, (error) => {
+                console.error('Error loading cloud texture. Event:', error);
+                console.error('Failed path:', './grid.png');
+            });
 
-            // Cannon
+            cloudTexture.wrapS = THREE.RepeatWrapping;
+            cloudTexture.wrapT = THREE.RepeatWrapping;
+            cloudTexture.repeat.set(3, 3);
+
+            const material = new THREE.MeshBasicMaterial({
+                map: cloudTexture,
+                transparent: true,
+                opacity: .3, // Adjust opacity based on your design needs
+                side: THREE.DoubleSide
+            });
+            // Define the geometry for the ground plane
+            const geometry = new THREE.PlaneGeometry(100, 100); // You can adjust the size as needed
+        
+            // Create the mesh using the geometry and material
+            const ground = new THREE.Mesh(geometry, material);
+            
+            // Rotate the plane to lie horizontally
+            ground.rotation.x = -Math.PI / 2; // Rotates the plane 90 degrees on the X-axis
+        
+            // Position the ground (optional depending on your scene setup)
+            ground.position.y = -10; // Set the ground plane at the base of your scene
+        
+            // Enable shadow receiving if your scene has lighting that casts shadows
+            ground.receiveShadow = true;
+        
+            // Add the ground to the scene
+            scene.add(ground);
+        
+            return ground;
+        }
+
+        function generateBox(x, y, z, width, depth, falls) {
+            if (!baseModel) {
+                console.warn("Base model has not been loaded yet.");
+                return; // Make sure the base model is loaded
+            }
+        
+            const model = baseModel.clone(); // Clone the base model
+            model.scale.set(width / 2, boxHeight / 2, depth / 2); // Set the desired size
+            model.position.set(x, y, z); // Set the desired position
+            model.castShadow = true; // Enable shadow casting
+            scene.add(model);
+        
+            // Set up the physics with CANNON.js
             const shape = new CANNON.Box(new CANNON.Vec3(width / 2, boxHeight / 2, depth / 2));
-            let mass = falls ? 5 : 0;
-            const body = new CANNON.Body({ mass, shape });
+            let mass = falls ? 2 : 0; // Set mass for dynamics or static behavior
+            const body = new CANNON.Body({ mass, shape, material: defaultMaterial });  // Assign material here
             body.position.set(x, y, z);
             world.addBody(body);
-
+        
+            model.userData.physicsBody = body; // Optional: link Three.js and Cannon.js data
+            body.threeObject = model; // Optional: link Cannon.js and Three.js data
+        
+            if (falls) {
+                body.velocity.set(velocity * 30, 0, 0);  // Assuming 'velocity' is defined earlier
+            }
+        
             return {
-                threejs: mesh,
+                threejs: model,
                 cannonjs: body,
                 width,
                 depth
@@ -218,9 +316,9 @@ const ThreeScene = ({onNavigate}) => {
             if (gameOver) {
                 return; // Stop the animation loop if the game is over
             }
-            const speed = 0.05;
+            const speed = 0.035 + round * 0.0015;
             angle += speed;
-            const amplitude = 3;
+            const amplitude = 1.5;
             const newPositionX = Math.sin(angle) * amplitude;
             
             let newPositionY = (Math.cos(angle) * amplitude / 2);
@@ -230,7 +328,9 @@ const ThreeScene = ({onNavigate}) => {
 
             const topLayer = currentBlock;
             const initYPos = topLayer.threejs.position.y;
+            velocity = newPositionX - lastPosX;
             topLayer.threejs.position.x = newPositionX;
+            lastPosX = newPositionX;
             //topLayer.threejs.position.y = newPositionY + initYPos;
 
             if (camera.position.y < boxHeight * round + 4){
@@ -242,6 +342,7 @@ const ThreeScene = ({onNavigate}) => {
 
             updatePhysics();
             renderer.render(scene, camera);
+
 
         }
 
@@ -258,7 +359,7 @@ const ThreeScene = ({onNavigate}) => {
 
         }
 
-
+        
         addEventListeners();
 
 
@@ -292,8 +393,8 @@ const ThreeScene = ({onNavigate}) => {
                             <div
                             onClick={(e) => e.stopPropagation()}>
                                 <div className='score-tab'>
-                                    <div className='score-in'>SCORE</div>
-                                    <div className='score-in score'>{score}</div>
+                                    <div>SCORE</div>
+                                    <div className='score'>{score}</div>
                                 </div>
                                 <div className='save-score'>
                                     <input
@@ -302,7 +403,7 @@ const ThreeScene = ({onNavigate}) => {
                                         onChange={(e) => setName(e.target.value)}
                                         placeholder="Enter your name"
                                     />
-                                    <button onClick={handleSaveScore}>Save Score</button>
+                                    <button className='button-yellow' onClick={handleSaveScore}>Save Score</button>
                                 </div>
                             </div>
                         )}
