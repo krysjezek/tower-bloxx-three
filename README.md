@@ -142,7 +142,7 @@ Funguje, lze vidět v App.css
 
 ### JS - OOP Přístup
 
-TO BE DONE
+Třída GameObject reprezentuje základní herní objekt v Three, dědí z ní Block (stavební kostka věže) a Cloud (mrakt, které se postupně generují).
 
 ### JS - Použítí JS frameworku
 

@@ -1,56 +1,161 @@
-import React, { useRef, useEffect, useState} from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import * as THREE from 'three';
 import CANNON from 'cannon';
 import db from './firebase';
 import { collection, addDoc } from 'firebase/firestore';
-import createCloud from './game/cloudGenerator';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
-const ThreeScene = ({onNavigate}) => {
+// Base class for all game objects with a visual representation in the scene
+class GameObject {
+    constructor(scene, model, x, y, z, width=0, depth=0) {
+        this.width = width;
+        this.depth = depth;
+
+        // Setup 3D model for the game object
+        this.model = model;
+        if (width > 0 && depth > 0) {
+            this.model.scale.set(width / 2, 1, depth / 2); // Assuming height is always 2 for simplicity
+        }
+        this.model.position.set(x, y, z);
+        this.model.castShadow = true;
+        scene.add(this.model); // Add model to the scene
+    }
+
+    // Set horizontal position of the object (used for moving objects like blocks)
+    setPositionX(x) {
+        this.model.position.x = x;
+    }
+
+    // Getter to access the underlying Three.js model
+    get threejs() {
+        return this.model;
+    }
+}
+
+// Block class for game blocks, inherits from GameObject
+class Block extends GameObject {
+    constructor(scene, world, baseModel, x, y, z, width, depth, falls, defaultMaterial, velocity) {
+        if (!baseModel) {
+            console.error("Base model has not been loaded yet.");
+            return;
+        }
+
+        super(scene, baseModel.clone(), x, y, z, width, depth);
+
+        // Initialize physics body for the block
+        const shape = new CANNON.Box(new CANNON.Vec3(width / 2, 1, depth / 2));
+        this.body = new CANNON.Body({
+            mass: falls ? 2 : 0,  // Mass determines if the block can fall
+            shape: shape,
+            material: defaultMaterial
+        });
+        this.body.position.set(x, y, z);
+        world.addBody(this.body);  // Add the physics body to the physics world
+
+        // Set initial velocity if the block is meant to fall
+        if (falls) {
+            this.body.velocity.set(velocity * 30, 0, 0);
+        }
+    }
+
+    // Update function to synchronize physics and visual representation
+    update() {
+        this.model.position.copy(this.body.position);
+        this.model.quaternion.copy(this.body.quaternion);
+    }
+
+    // Accessor for the physics body
+    get cannonjs() {
+        return this.body;
+    }
+
+    // Width and depth accessors
+    get blockWidth() {
+        return this.width;
+    }
+
+    get blockDepth() {
+        return this.depth;
+    }
+}
+
+// Cloud class for generating clouds in the game, inherits from GameObject
+class Cloud extends GameObject {
+    constructor(scene, x, y, z) {
+        const cloudTextures = [
+            { path: './clouds/cloud1.png', width: 10, height: 5 },
+            { path: './clouds/cloud2.png', width: 12, height: 6 },
+            { path: './clouds/cloud3.png', width: 15, height: 7.5 },
+            { path: './clouds/cloud4.png', width: 8, height: 4 }
+        ];
+
+        // Randomly select a cloud texture
+        const cloudData = cloudTextures[Math.floor(Math.random() * cloudTextures.length)];
+        const textureLoader = new THREE.TextureLoader();
+        const cloudTexture = textureLoader.load(cloudData.path);
+
+        const material = new THREE.MeshBasicMaterial({
+            map: cloudTexture,
+            transparent: true,
+            opacity: 0.6,
+            side: THREE.DoubleSide
+        });
+
+        const geometry = new THREE.PlaneGeometry(cloudData.width, cloudData.height);
+        const cloudModel = new THREE.Mesh(geometry, material);
+
+        // Create the cloud object
+        super(scene, cloudModel, x, y, z);
+    }
+}
+
+// React component to encapsulate the entire game scene
+const ThreeScene = ({ onNavigate }) => {
     const mountRef = useRef(null);
     const [gameOver, setGameOver] = useState(false);
-    const [score, setScore] = useState(0); // Score state
-    const [name, setName] = useState(''); // Stav pro jméno
-    const [email, setEmail] = useState(''); // Přidaný stav pro email
+    const [score, setScore] = useState(0);
+    const [name, setName] = useState('');
+    const [email, setEmail] = useState('');
     const [isSaved, setIsSaved] = useState(false);
-    const [cameraPosition, setCameraPosition] = useState(new THREE.Vector3(2, 2, 8)); // Initial camera position
-    const [animationProgress, setAnimationProgress] = useState(0); // Progress from 0 to 1
-    const targetPosition = new THREE.Vector3(1, 2, 7);
 
+    // Initialize the game and set up initial state
     const initializeGame = () => {
         setGameOver(false);
         setScore(0);
-    }
+    };
 
+    // Save the player name to local storage
     const saveNameToLocalStorage = (name) => {
         localStorage.setItem('userName', name);
-    };    
+    };
 
+    // Function to handle saving the score to Firebase
     const handleSaveScore = async (e) => {
-        e.preventDefault(); // Zabránění standardnímu odeslání formuláře
+        e.preventDefault();
         if (name.trim() === '') {
-            alert('Please enter a name.'); // Jednoduchá validace jména
+            alert('Please enter a name.');
             return;
         }
-    
+
         try {
-            // Přidání dokumentu do kolekce "scores" s jménem, skóre a datem
             await addDoc(collection(db, "scores"), {
                 name: name,
                 score: score,
                 date: new Date()
             });
-            saveNameToLocalStorage(name); // Uložení jména do LocalStorage
+            saveNameToLocalStorage(name);
             setIsSaved(true);
             alert('Score saved successfully!');
         } catch (error) {
             console.error("Error saving to Firebase:", error);
             alert('Error saving score: ' + error.message);
         }
-    };    
+    };
 
     let baseModel = null;
-    function loadBaseModel() {
+
+    // Load the base model for the blocks
+    const loadBaseModel = () => {
         return new Promise((resolve, reject) => {
             const loader = new GLTFLoader();
             loader.load(
@@ -67,11 +172,9 @@ const ThreeScene = ({onNavigate}) => {
                 }
             );
         });
-    }
-    
+    };
 
     useEffect(() => {
-
         let camera, scene, renderer;
         const originalBoxSize = 2;
         let currentBlock = null;
@@ -88,16 +191,15 @@ const ThreeScene = ({onNavigate}) => {
         let velocity = 0;
         let defaultContactMaterial, defaultMaterial;
 
-        async function init() {
-            try{
+        // Initial setup for the game
+        const init = async () => {
+            try {
                 await loadBaseModel();
-            
             } catch (error) {}
-            loadBaseModel();
-            setIsSaved(false);
+
             if (renderer) {
                 renderer.setAnimationLoop(null);
-                while(scene.children.length > 0){
+                while (scene.children.length > 0) {
                     scene.remove(scene.children[0]);
                 }
                 Array.from(world.bodies).forEach(body => {
@@ -108,7 +210,7 @@ const ThreeScene = ({onNavigate}) => {
                 }
             }
 
-            console.log('init');
+            console.log('Game initialized');
             world = new CANNON.World();
             world.gravity.set(0, -10, 0);
             world.broadphase = new CANNON.NaiveBroadphase();
@@ -118,19 +220,14 @@ const ThreeScene = ({onNavigate}) => {
 
             defaultContactMaterial = new CANNON.ContactMaterial(defaultMaterial, defaultMaterial, {
                 friction: 0.4,
-                restitution: 0,  // Adjust restitution to control "bounciness"
+                restitution: 0,
             });
             world.addContactMaterial(defaultContactMaterial);
-
-            world.addEventListener('beginContact', function(event) {
-                console.log('Collision detected between:', event.bodyA.id, 'and', event.bodyB.id);
-                // You can add more specific logic here based on the IDs or materials
-            });
 
             scene = new THREE.Scene();
 
             addLayer(0, 0, 0, originalBoxSize, originalBoxSize);
-            addLayer(-10,step, 0, originalBoxSize, originalBoxSize, 'x');
+            addLayer(-10, step, 0, originalBoxSize, originalBoxSize, 'x');
 
             const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
             scene.add(ambientLight);
@@ -153,10 +250,9 @@ const ThreeScene = ({onNavigate}) => {
                 100
             );
 
-            camera.position.set(2, 2,8);
+            camera.position.set(2, 2, 8);
             camera.lookAt(0, 0, 0);
 
-            // renderer
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.shadowMap.enabled = true;
@@ -165,26 +261,22 @@ const ThreeScene = ({onNavigate}) => {
             document.body.appendChild(renderer.domElement);
             renderer.setAnimationLoop(animation);
 
-            scene.background = new THREE.Color(0x121212); 
-        }
+            scene.background = new THREE.Color(0x121212);
+        };
 
-        function addLayer(x, y ,z ,width, depth){
-            currentBlock = generateBox(x, y, z, width, depth);
-        }
-
+        // Add a new layer/block to the game
+        const addLayer = (x, y, z, width, depth) => {
+            currentBlock = new Block(scene, world, baseModel, x, y, z, width, depth, false, defaultMaterial, 0);
+        };
+        
+         // Check if it's time to generate a new cloud based on the current height
         function checkHeightAndGenerateClouds(currentHeight) {
             if (currentHeight > lastCloudHeight + cloudHeightInterval) {
-                const newCloud = createCloud();
-                newCloud.position.set(
-                    Math.random() * 20 - 10, // Random X position within range
-                    currentHeight + 10,      // Slightly above the current height
-                    Math.random() * 10 - 10   // Random Z position within range
-                );
-                scene.add(newCloud);
+                const newCloud = new Cloud(scene, Math.random() * 20 - 10, currentHeight + 10, Math.random() * 10 - 10);
                 lastCloudHeight = currentHeight; // Update the height at which the last cloud was added
             }
         }
-
+        // Function to create the ground
         function createGround() {
 
             const textureLoader = new THREE.TextureLoader();
@@ -204,69 +296,32 @@ const ThreeScene = ({onNavigate}) => {
             const material = new THREE.MeshBasicMaterial({
                 map: cloudTexture,
                 transparent: true,
-                opacity: .3, // Adjust opacity based on your design needs
+                opacity: .3, 
                 side: THREE.DoubleSide
             });
-            // Define the geometry for the ground plane
-            const geometry = new THREE.PlaneGeometry(100, 100); // You can adjust the size as needed
+            const geometry = new THREE.PlaneGeometry(100, 100); 
         
-            // Create the mesh using the geometry and material
             const ground = new THREE.Mesh(geometry, material);
             
             // Rotate the plane to lie horizontally
-            ground.rotation.x = -Math.PI / 2; // Rotates the plane 90 degrees on the X-axis
+            ground.rotation.x = -Math.PI / 2;
         
-            // Position the ground (optional depending on your scene setup)
-            ground.position.y = -10; // Set the ground plane at the base of your scene
+            ground.position.y = -10; 
         
-            // Enable shadow receiving if your scene has lighting that casts shadows
             ground.receiveShadow = true;
         
-            // Add the ground to the scene
             scene.add(ground);
         
             return ground;
         }
 
-        function generateBox(x, y, z, width, depth, falls) {
-            if (!baseModel) {
-                console.warn("Base model has not been loaded yet.");
-                return; // Make sure the base model is loaded
-            }
-        
-            const model = baseModel.clone(); // Clone the base model
-            model.scale.set(width / 2, boxHeight / 2, depth / 2); // Set the desired size
-            model.position.set(x, y, z); // Set the desired position
-            model.castShadow = true; // Enable shadow casting
-            scene.add(model);
-        
-            // Set up the physics with CANNON.js
-            const shape = new CANNON.Box(new CANNON.Vec3(width / 2, boxHeight / 2, depth / 2));
-            let mass = falls ? 2 : 0; // Set mass for dynamics or static behavior
-            const body = new CANNON.Body({ mass, shape, material: defaultMaterial });  // Assign material here
-            body.position.set(x, y, z);
-            world.addBody(body);
-        
-            model.userData.physicsBody = body; // Optional: link Three.js and Cannon.js data
-            body.threeObject = model; // Optional: link Cannon.js and Three.js data
-        
-            if (falls) {
-                body.velocity.set(velocity * 30, 0, 0);  // Assuming 'velocity' is defined earlier
-            }
-        
-            return {
-                threejs: model,
-                cannonjs: body,
-                width,
-                depth
-            };
+        // Function to generate a block and drop it from above
+        function generateDroppedBox(x, y, z, width, depth, velocity){
+            const dblock = new Block(scene, world, baseModel, x, y, z, width, depth, true, defaultMaterial, velocity);
+            droppedBlocks.push(dblock); // Add to the list of dropped blocks for tracking
         }
 
-        function generateDroppedBox(x, y, z, width, depth){
-            const dblock = generateBox(x, y, z, width, depth, true);
-            droppedBlocks.push(dblock);
-        }
-
+        // Event listeners for user interaction
         const addEventListeners = () => {
             window.addEventListener('click', handleUserInteraction);
             //window.addEventListener('touchstart', handleUserInteraction);
@@ -277,7 +332,7 @@ const ThreeScene = ({onNavigate}) => {
             //window.removeEventListener('touchstart', handleUserInteraction);
         };
 
-
+        // Handles user clicks to trigger block movement or game functions
         const handleUserInteraction = () => {
             if (!gameStarted){
                 resetGame();
@@ -287,11 +342,11 @@ const ThreeScene = ({onNavigate}) => {
 
                 const nextX = -10;
                 const nextZ = 0;
-                const nextY = (round + 1) * boxHeight + step;
+                const nextY = (round + 1) * boxHeight + step; // Calculate new Y based on rounds and step 
                 const newWidth = originalBoxSize;
                 const newDepth = originalBoxSize;
 
-                generateDroppedBox(topLayer.threejs.position.x, topLayer.threejs.position.y, topLayer.threejs.position.z, topLayer.width, topLayer.depth);
+                generateDroppedBox(topLayer.threejs.position.x, topLayer.threejs.position.y, topLayer.threejs.position.z, topLayer.blockWidth, topLayer.blockDepth, velocity);
 
                 scene.remove(topLayer.threejs);
                 
@@ -301,6 +356,7 @@ const ThreeScene = ({onNavigate}) => {
             }
         };
 
+        // Reset game to initial state
         function resetGame() {
             // Clear the scene and physics world
             droppedBlocks = [];
@@ -310,8 +366,8 @@ const ThreeScene = ({onNavigate}) => {
             init(); // re-initialize the game setup
         }
 
+        // Check if any blocks have fallen off to end the game
         function checkGameOver() {
-            // Assuming the game over condition is that the block falls below y = -10
             droppedBlocks.forEach(block => {
                 if (block.threejs.position.y < -1) {
                     setGameOver(true);
@@ -320,11 +376,12 @@ const ThreeScene = ({onNavigate}) => {
             });
         }
 
+        // Animation loop to handle the game logic
         function animation(){
             if (gameOver) {
                 return; // Stop the animation loop if the game is over
             }
-            const speed = 0.035 + round * 0.0015;
+            const speed = 0.035 + round * 0.0015; // Increase speed based on round
             angle += speed;
             const amplitude = 1.5;
             const newPositionX = Math.sin(angle) * amplitude;
@@ -337,30 +394,30 @@ const ThreeScene = ({onNavigate}) => {
             const topLayer = currentBlock;
             const initYPos = topLayer.threejs.position.y;
             velocity = newPositionX - lastPosX;
-            topLayer.threejs.position.x = newPositionX;
+            topLayer.setPositionX(newPositionX); // Update position based on new X
             lastPosX = newPositionX;
             //topLayer.threejs.position.y = newPositionY + initYPos;
 
             if (camera.position.y < boxHeight * round + 4){
-                camera.position.y += speed;
+                camera.position.y += speed; // Adjust camera position as game progresses
             }
 
             const currentHeight = camera.position.y; // Assuming the camera's Y position represents player height
             checkHeightAndGenerateClouds(currentHeight);
 
-            updatePhysics();
+            updatePhysics(); // Update physics world
             renderer.render(scene, camera);
 
 
         }
 
+        // Update physics world and synchronize visual and physics entities
         function updatePhysics(){
 
             world.step(1/60);
 
             droppedBlocks.forEach((element) => {
-                element.threejs.position.copy(element.cannonjs.position);
-                element.threejs.quaternion.copy(element.cannonjs.quaternion);
+                element.update(); // Update each block's position based on physics simulation
             });
 
             checkGameOver();
@@ -382,7 +439,7 @@ const ThreeScene = ({onNavigate}) => {
     }, []);
 
     
-
+// Return the component display, handling both the game view and the UI for game over
     return (
         <div ref={mountRef} style={{ position: 'relative', width: '100%', height: '100%' }}>
             {!gameOver && (

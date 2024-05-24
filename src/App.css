@@ -254,7 +254,6 @@ input{
   box-shadow: 0 .2em #4a4a4a; 
   cursor: pointer;
   border: 2px solid #4d4d4d;
-  max-width: 250px;
 }
 
 /* Handle */
@@ -285,6 +284,7 @@ input{
 
 .save-score{
   display: flex;
+  flex-direction: column;
 }
 
 
@@ -324,4 +324,24 @@ input{
   }
   
 
+}
+
+.music-controls {
+  margin: 10px;
+}
+
+.music-button-on {
+  background-color: white;
+  color: black;
+  font-size: 0.6em;
+  padding: 10px;
+  cursor: pointer;
+}
+
+.music-button-off {
+  background-color: #ccc;
+  color: #818181;
+  font-size: 0.6em;
+  padding: 10px;
+  cursor: pointer;
 }
